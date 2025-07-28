@@ -8,7 +8,7 @@ fn test_cli_help_command() {
         .expect("Failed to execute command");
 
     assert!(output.status.success());
-    
+
     let stdout = String::from_utf8(output.stdout).expect("Invalid UTF-8");
     assert!(stdout.contains("PulsePrint-CLI"));
     assert!(stdout.contains("monitor"));
@@ -22,7 +22,7 @@ fn test_cli_version_command() {
         .expect("Failed to execute command");
 
     assert!(output.status.success());
-    
+
     let stdout = String::from_utf8(output.stdout).expect("Invalid UTF-8");
     assert!(stdout.contains("pulseprint-cli"));
 }
@@ -35,7 +35,7 @@ fn test_monitor_help_command() {
         .expect("Failed to execute command");
 
     assert!(output.status.success());
-    
+
     let stdout = String::from_utf8(output.stdout).expect("Invalid UTF-8");
     assert!(stdout.contains("Monitor a Bambu Labs printer via MQTT"));
     assert!(stdout.contains("--printer"));
@@ -51,7 +51,7 @@ fn test_monitor_missing_arguments() {
         .expect("Failed to execute command");
 
     assert!(!output.status.success());
-    
+
     let stderr = String::from_utf8(output.stderr).expect("Invalid UTF-8");
     assert!(stderr.contains("required arguments were not provided"));
 }

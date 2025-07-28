@@ -37,7 +37,10 @@ async fn test_mqtt_client_creation_with_valid_config() {
 
     // This will create the client but won't actually connect
     let result = MqttClient::new(config).await;
-    assert!(result.is_ok(), "MqttClient creation should succeed with valid config");
+    assert!(
+        result.is_ok(),
+        "MqttClient creation should succeed with valid config"
+    );
 }
 
 #[test]

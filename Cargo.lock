@@ -594,6 +594,7 @@ dependencies = [
  "clap",
  "mockall",
  "rumqttc",
+ "rustls",
  "serde",
  "serde_json",
  "tokio",

@@ -46,7 +46,7 @@ async fn main() {
 
             match monitor_printer(config).await {
                 Ok(_) => println!("Monitoring completed successfully"),
-                Err(e) => eprintln!("Error monitoring printer: {}", e),
+                Err(e) => eprintln!("Error monitoring printer: {e}"),
             }
         }
         None => {
@@ -76,7 +76,7 @@ async fn monitor_printer(config: mqtt::PrinterConfig) -> Result<(), Box<dyn std:
                 return Ok(());
             }
             Err(e) => {
-                eprintln!("Connection attempt failed: {}", e);
+                eprintln!("Connection attempt failed: {e}");
 
                 retry_count += 1;
                 if retry_count > MAX_RETRIES {
@@ -85,7 +85,7 @@ async fn monitor_printer(config: mqtt::PrinterConfig) -> Result<(), Box<dyn std:
                     );
                 }
 
-                println!("Retrying in {} seconds...", RETRY_DELAY_SECS);
+                println!("Retrying in {RETRY_DELAY_SECS} seconds...");
                 tokio::time::sleep(tokio::time::Duration::from_secs(RETRY_DELAY_SECS)).await;
             }
         }
@@ -106,7 +106,7 @@ async fn attempt_connection(
                 use rumqttc::Event;
                 match notification {
                     Event::Incoming(packet) => {
-                        println!("Received: {:?}", packet);
+                        println!("Received: {packet:?}");
                     }
                     Event::Outgoing(packet) => {
                         // Less verbose for outgoing packets
@@ -117,7 +117,7 @@ async fn attempt_connection(
                 }
             }
             Err(e) => {
-                return Err(format!("MQTT connection error: {}", e).into());
+                return Err(format!("MQTT connection error: {e}").into());
             }
         }
     }
