@@ -2,6 +2,9 @@ use rumqttc::{AsyncClient, EventLoop, MqttOptions, QoS, TlsConfiguration, Transp
 use std::error::Error;
 use std::time::Duration;
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Debug, Clone)]
 pub struct PrinterConfig {
     pub ip: String,
@@ -60,5 +63,4 @@ impl MqttClient {
     pub fn get_eventloop(self) -> EventLoop {
         self.eventloop
     }
-
 }

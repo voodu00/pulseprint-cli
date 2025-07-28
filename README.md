@@ -100,9 +100,24 @@ cargo build --release # Release build
 ### Testing
 
 ```bash
-cargo test           # Run tests
-cargo check          # Check code without building
+cargo test                    # Run all tests (unit + integration)
+cargo test --bin pulseprint-cli  # Run unit tests only
+cargo test --tests           # Run integration tests only
+cargo test test_printer_config   # Run specific test by name
+cargo check                   # Check code without building
 ```
+
+**Test Structure:**
+- Unit tests: `src/mqtt/tests.rs` - Test individual components and functions
+- Integration tests: `tests/integration_tests.rs` - Test CLI commands and full workflows
+
+**Test Coverage:**
+- ✅ MQTT client configuration and creation
+- ✅ Connection parameter validation
+- ✅ CLI argument parsing and validation
+- ✅ Help command functionality
+- ✅ Error handling for invalid inputs
+- ✅ Topic format generation
 
 ### Code Quality
 
@@ -130,11 +145,16 @@ src/
 
 ### Dependencies
 
+**Runtime Dependencies:**
 - **clap**: Command-line argument parsing
 - **tokio**: Async runtime for MQTT operations
 - **rumqttc**: MQTT client with TLS support
 - **serde**: JSON serialization for MQTT messages
 - **tokio-native-tls**: TLS connector for secure connections
+
+**Development Dependencies:**
+- **tokio-test**: Testing utilities for async code
+- **mockall**: Mock object library for testing
 
 ## API Reference
 
