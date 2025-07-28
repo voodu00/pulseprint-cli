@@ -1,3 +1,4 @@
+use crate::config::PrinterConfig;
 use rumqttc::{AsyncClient, EventLoop, MqttOptions, QoS, TlsConfiguration, Transport};
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
 use rustls::{DigitallySignedStruct, SignatureScheme};
@@ -60,13 +61,6 @@ impl ServerCertVerifier for NoVerifyTls {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct PrinterConfig {
-    pub ip: String,
-    pub device_id: String,
-    pub access_code: String,
-}
-
 pub struct MqttClient {
     client: AsyncClient,
     eventloop: EventLoop,
@@ -75,19 +69,21 @@ pub struct MqttClient {
 
 impl MqttClient {
     pub async fn new(config: PrinterConfig) -> Result<Self, Box<dyn Error>> {
-        let mut mqtt_options = MqttOptions::new("pulseprint-cli", &config.ip, 8883);
+        let mut mqtt_options = MqttOptions::new("pulseprint-cli", &config.ip, config.port);
 
         // Set authentication
         mqtt_options.set_credentials("bblp", &config.access_code);
 
-        // Configure TLS to accept self-signed certificates (common for local printers)
-        let tls_config = rustls::ClientConfig::builder()
-            .dangerous()
-            .with_custom_certificate_verifier(std::sync::Arc::new(NoVerifyTls {}))
-            .with_no_client_auth();
+        // Configure TLS if enabled
+        if config.use_tls {
+            let tls_config = rustls::ClientConfig::builder()
+                .dangerous()
+                .with_custom_certificate_verifier(std::sync::Arc::new(NoVerifyTls {}))
+                .with_no_client_auth();
 
-        let tls_config = TlsConfiguration::Rustls(std::sync::Arc::new(tls_config));
-        mqtt_options.set_transport(Transport::Tls(tls_config));
+            let tls_config = TlsConfiguration::Rustls(std::sync::Arc::new(tls_config));
+            mqtt_options.set_transport(Transport::Tls(tls_config));
+        }
 
         // Set connection parameters
         mqtt_options.set_keep_alive(Duration::from_secs(30));
@@ -103,14 +99,14 @@ impl MqttClient {
 
     pub async fn connect(&self) -> Result<(), Box<dyn Error>> {
         // Subscribe to the device report topic
-        let report_topic = format!("device/{}/report", self.config.device_id);
+        let report_topic = self.config.report_topic();
         self.client
             .subscribe(&report_topic, QoS::AtMostOnce)
             .await?;
 
         println!(
-            "Connected to printer at {} and subscribed to {}",
-            self.config.ip, report_topic
+            "Connected to printer '{}' at {} and subscribed to {}",
+            self.config.name, self.config.ip, report_topic
         );
 
         Ok(())

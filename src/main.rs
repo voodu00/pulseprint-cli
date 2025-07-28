@@ -1,5 +1,6 @@
 use clap::{Parser, Subcommand};
 
+mod config;
 mod mqtt;
 
 /// PulsePrint-CLI: A tool for monitoring Bambu Labs printers via MQTT
@@ -38,11 +39,12 @@ async fn main() {
             device_id,
             access_code,
         }) => {
-            let config = mqtt::PrinterConfig {
-                ip: printer.clone(),
-                device_id: device_id.clone(),
-                access_code: access_code.clone(),
-            };
+            let config = config::PrinterConfig::new(
+                "temp".to_string(),
+                printer.clone(),
+                device_id.clone(),
+                access_code.clone(),
+            );
 
             match monitor_printer(config).await {
                 Ok(_) => println!("Monitoring completed successfully"),
@@ -55,7 +57,7 @@ async fn main() {
     }
 }
 
-async fn monitor_printer(config: mqtt::PrinterConfig) -> Result<(), Box<dyn std::error::Error>> {
+async fn monitor_printer(config: config::PrinterConfig) -> Result<(), Box<dyn std::error::Error>> {
     const MAX_RETRIES: u32 = 5;
     const RETRY_DELAY_SECS: u64 = 5;
 
@@ -63,7 +65,8 @@ async fn monitor_printer(config: mqtt::PrinterConfig) -> Result<(), Box<dyn std:
 
     loop {
         println!(
-            "Connecting to printer at {} with device ID {} (attempt {}/{})",
+            "Connecting to printer '{}' at {} with device ID {} (attempt {}/{})",
+            config.name,
             config.ip,
             config.device_id,
             retry_count + 1,
@@ -93,7 +96,7 @@ async fn monitor_printer(config: mqtt::PrinterConfig) -> Result<(), Box<dyn std:
 }
 
 async fn attempt_connection(
-    config: &mqtt::PrinterConfig,
+    config: &config::PrinterConfig,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mqtt_client = mqtt::MqttClient::new(config.clone()).await?;
     mqtt_client.connect().await?;

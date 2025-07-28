@@ -8,6 +8,8 @@ A Rust-based command-line tool for monitoring Bambu Labs 3D printers via MQTT wi
 - 🔄 **Auto-Retry Logic**: Robust connection handling with configurable retry attempts
 - 📊 **Real-time Monitoring**: Live status updates from printer MQTT topics
 - 🛠️ **CLI Interface**: Easy-to-use command-line interface with comprehensive help
+- ⚙️ **Configuration Management**: JSON-based configuration system for managing multiple printers
+- 🏠 **Cross-Platform Config**: Automatic configuration directory detection (Linux/macOS/Windows)
 
 ## Installation
 
@@ -108,10 +110,14 @@ cargo check                   # Check code without building
 ```
 
 **Test Structure:**
-- Unit tests: `src/mqtt/tests.rs` - Test individual components and functions
-- Integration tests: `tests/integration_tests.rs` - Test CLI commands and full workflows
+- Unit tests: `src/config/tests.rs` - Configuration management tests
+- Unit tests: `src/mqtt/tests.rs` - MQTT client and connection tests  
+- Integration tests: `tests/integration_tests.rs` - CLI commands and full workflows
 
 **Test Coverage:**
+- ✅ Printer configuration creation and validation
+- ✅ Configuration file save/load operations
+- ✅ Printer management (add, remove, default selection)
 - ✅ MQTT client configuration and creation
 - ✅ Connection parameter validation
 - ✅ CLI argument parsing and validation
@@ -131,7 +137,12 @@ cargo fmt            # Format code
 ```
 src/
 ├── main.rs          # CLI entry point and command handling
-└── mqtt.rs          # MQTT client implementation with TLS
+├── config/
+│   ├── mod.rs       # Configuration management and data structures
+│   └── tests.rs     # Configuration unit tests
+└── mqtt/
+    ├── mod.rs       # MQTT client implementation with TLS
+    └── tests.rs     # MQTT-specific unit tests
 ```
 
 ## Technical Details
@@ -146,15 +157,19 @@ src/
 ### Dependencies
 
 **Runtime Dependencies:**
-- **clap**: Command-line argument parsing
+- **clap**: Command-line argument parsing with derive macros
 - **tokio**: Async runtime for MQTT operations
 - **rumqttc**: MQTT client with TLS support
-- **serde**: JSON serialization for MQTT messages
-- **tokio-native-tls**: TLS connector for secure connections
+- **serde**: JSON serialization for configuration and MQTT messages
+- **serde_json**: JSON parsing and generation
+- **rustls**: Modern TLS library for secure connections
+- **thiserror**: Derive macros for error handling
+- **dirs**: Cross-platform configuration directory detection
 
 **Development Dependencies:**
 - **tokio-test**: Testing utilities for async code
 - **mockall**: Mock object library for testing
+- **tempfile**: Temporary file creation for testing file operations
 
 ## API Reference
 
@@ -194,6 +209,45 @@ This project implements the [OpenBambuAPI](https://github.com/Doridian/OpenBambu
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
+## Configuration System
+
+PulsePrint-CLI now includes a comprehensive configuration system for managing multiple printers.
+
+### Configuration File Location
+
+The configuration file is automatically stored in the appropriate location for your operating system:
+
+- **Linux**: `~/.config/pulseprint-cli/config.json`
+- **macOS**: `~/Library/Application Support/pulseprint-cli/config.json`
+- **Windows**: `%APPDATA%\pulseprint-cli\config.json`
+
+### Configuration Structure
+
+```json
+{
+  "printers": {
+    "my_printer": {
+      "name": "my_printer",
+      "ip": "192.168.1.100",
+      "device_id": "01S00A000000000",
+      "access_code": "12345678",
+      "port": 8883,
+      "use_tls": true,
+      "model": null,
+      "firmware_version": null
+    }
+  },
+  "default_printer": "my_printer",
+  "mqtt_settings": {
+    "keep_alive_secs": 30,
+    "connection_timeout_secs": 10,
+    "retry_attempts": 5,
+    "retry_delay_secs": 5,
+    "queue_size": 10
+  }
+}
+```
+
 ## Status
 
 🚧 **Currently in Development**
@@ -202,9 +256,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - ✅ Basic printer monitoring
 - ✅ CLI interface with help system
 - ✅ Error handling and retry logic
+- ✅ Configuration management system
+- ✅ Multiple printer data structures
+- 🚧 Printer management CLI commands (planned for issue #5)
+- 🚧 Real-time status monitoring and display (planned for issue #6)
 - 🚧 Message parsing and display (in progress)
-- 🚧 Configuration file support (planned)
-- 🚧 Multiple printer support (planned)
 - 🚧 Command sending capabilities (planned)
 
 ## Acknowledgments
