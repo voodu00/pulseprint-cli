@@ -134,7 +134,9 @@ fn test_get_printer() {
         "access123".to_string(),
     );
 
-    app_config.add_printer("test_printer".to_string(), printer_config).unwrap();
+    app_config
+        .add_printer("test_printer".to_string(), printer_config)
+        .unwrap();
 
     // Get existing printer
     let retrieved = app_config.get_printer("test_printer").unwrap();
@@ -165,13 +167,17 @@ fn test_default_printer_operations() {
     assert!(app_config.get_default_printer().is_err());
 
     // Add first printer
-    app_config.add_printer("printer1".to_string(), printer1).unwrap();
+    app_config
+        .add_printer("printer1".to_string(), printer1)
+        .unwrap();
     let default = app_config.get_default_printer().unwrap();
     assert_eq!(default.name, "printer1");
 
     // Add second printer
-    app_config.add_printer("printer2".to_string(), printer2).unwrap();
-    
+    app_config
+        .add_printer("printer2".to_string(), printer2)
+        .unwrap();
+
     // Set new default
     assert!(app_config.set_default_printer("printer2").is_ok());
     let default = app_config.get_default_printer().unwrap();
@@ -184,7 +190,7 @@ fn test_default_printer_operations() {
 #[test]
 fn test_list_printers() {
     let mut app_config = AppConfig::default();
-    
+
     // Empty list
     let printers = app_config.list_printers();
     assert!(printers.is_empty());
@@ -203,12 +209,16 @@ fn test_list_printers() {
         "access2".to_string(),
     );
 
-    app_config.add_printer("printer1".to_string(), printer1).unwrap();
-    app_config.add_printer("printer2".to_string(), printer2).unwrap();
+    app_config
+        .add_printer("printer1".to_string(), printer1)
+        .unwrap();
+    app_config
+        .add_printer("printer2".to_string(), printer2)
+        .unwrap();
 
     let printers = app_config.list_printers();
     assert_eq!(printers.len(), 2);
-    
+
     let names: Vec<&String> = printers.iter().map(|(name, _)| *name).collect();
     assert!(names.contains(&&"printer1".to_string()));
     assert!(names.contains(&&"printer2".to_string()));
@@ -225,7 +235,7 @@ fn test_config_path() {
 fn test_load_nonexistent_config() {
     let temp_dir = tempdir().unwrap();
     let nonexistent_path = temp_dir.path().join("nonexistent.json");
-    
+
     // Should return default config for non-existent file
     let config = AppConfig::load_from_file(&nonexistent_path).unwrap();
     assert!(config.printers.is_empty());
@@ -241,9 +251,13 @@ fn test_error_conditions() {
         "access123".to_string(),
     );
 
-    // Test PrinterExists error  
-    app_config.add_printer("test_printer".to_string(), printer_config.clone()).unwrap();
-    let err = app_config.add_printer("test_printer".to_string(), printer_config).unwrap_err();
+    // Test PrinterExists error
+    app_config
+        .add_printer("test_printer".to_string(), printer_config.clone())
+        .unwrap();
+    let err = app_config
+        .add_printer("test_printer".to_string(), printer_config)
+        .unwrap_err();
     assert!(matches!(err, ConfigError::PrinterExists(_)));
 
     // Test PrinterNotFound error

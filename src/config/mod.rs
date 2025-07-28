@@ -32,6 +32,7 @@ impl PrinterConfig {
         }
     }
 
+    #[allow(dead_code)] // Will be used in future features
     pub fn mqtt_url(&self) -> String {
         let protocol = if self.use_tls { "mqtts" } else { "mqtt" };
         format!("{}://{}:{}", protocol, self.ip, self.port)
@@ -41,12 +42,13 @@ impl PrinterConfig {
         format!("device/{}/report", self.device_id)
     }
 
+    #[allow(dead_code)] // Will be used in future features  
     pub fn request_topic(&self) -> String {
         format!("device/{}/request", self.device_id)
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AppConfig {
     pub printers: HashMap<String, PrinterConfig>,
     pub default_printer: Option<String>,
@@ -74,16 +76,6 @@ impl Default for MqttSettings {
     }
 }
 
-impl Default for AppConfig {
-    fn default() -> Self {
-        Self {
-            printers: HashMap::new(),
-            default_printer: None,
-            mqtt_settings: MqttSettings::default(),
-        }
-    }
-}
-
 impl AppConfig {
     pub fn load_from_file(path: &PathBuf) -> Result<Self, ConfigError> {
         if !path.exists() {
@@ -91,10 +83,10 @@ impl AppConfig {
         }
 
         let contents = fs::read_to_string(path)
-            .map_err(|e| ConfigError::IoError(format!("Failed to read config file: {}", e)))?;
+            .map_err(|e| ConfigError::IoError(format!("Failed to read config file: {e}")))?;
 
         let config: AppConfig = serde_json::from_str(&contents)
-            .map_err(|e| ConfigError::ParseError(format!("Failed to parse config: {}", e)))?;
+            .map_err(|e| ConfigError::ParseError(format!("Failed to parse config: {e}")))?;
 
         Ok(config)
     }
@@ -102,16 +94,15 @@ impl AppConfig {
     pub fn save_to_file(&self, path: &PathBuf) -> Result<(), ConfigError> {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).map_err(|e| {
-                ConfigError::IoError(format!("Failed to create config directory: {}", e))
+                ConfigError::IoError(format!("Failed to create config directory: {e}"))
             })?;
         }
 
-        let contents = serde_json::to_string_pretty(self).map_err(|e| {
-            ConfigError::SerializeError(format!("Failed to serialize config: {}", e))
-        })?;
+        let contents = serde_json::to_string_pretty(self)
+            .map_err(|e| ConfigError::SerializeError(format!("Failed to serialize config: {e}")))?;
 
         fs::write(path, contents)
-            .map_err(|e| ConfigError::IoError(format!("Failed to write config file: {}", e)))?;
+            .map_err(|e| ConfigError::IoError(format!("Failed to write config file: {e}")))?;
 
         Ok(())
     }
@@ -119,8 +110,7 @@ impl AppConfig {
     pub fn add_printer(&mut self, name: String, printer: PrinterConfig) -> Result<(), ConfigError> {
         if self.printers.contains_key(&name) {
             return Err(ConfigError::PrinterExists(format!(
-                "Printer '{}' already exists",
-                name
+                "Printer '{name}' already exists"
             )));
         }
 
@@ -137,21 +127,23 @@ impl AppConfig {
         let printer = self
             .printers
             .remove(name)
-            .ok_or_else(|| ConfigError::PrinterNotFound(format!("Printer '{}' not found", name)))?;
+            .ok_or_else(|| ConfigError::PrinterNotFound(format!("Printer '{name}' not found")))?;
 
         if self.default_printer.as_ref() == Some(&name.to_string()) {
-            self.default_printer = self.printers.keys().next().map(|k| k.clone());
+            self.default_printer = self.printers.keys().next().cloned();
         }
 
         Ok(printer)
     }
 
+    #[allow(dead_code)] // Will be used in future features
     pub fn get_printer(&self, name: &str) -> Result<&PrinterConfig, ConfigError> {
         self.printers
             .get(name)
-            .ok_or_else(|| ConfigError::PrinterNotFound(format!("Printer '{}' not found", name)))
+            .ok_or_else(|| ConfigError::PrinterNotFound(format!("Printer '{name}' not found")))
     }
 
+    #[allow(dead_code)] // Will be used in future features
     pub fn get_default_printer(&self) -> Result<&PrinterConfig, ConfigError> {
         let name = self.default_printer.as_ref().ok_or_else(|| {
             ConfigError::NoDefaultPrinter("No default printer configured".to_string())
@@ -163,8 +155,7 @@ impl AppConfig {
     pub fn set_default_printer(&mut self, name: &str) -> Result<(), ConfigError> {
         if !self.printers.contains_key(name) {
             return Err(ConfigError::PrinterNotFound(format!(
-                "Printer '{}' not found",
-                name
+                "Printer '{name}' not found"
             )));
         }
 
@@ -203,5 +194,6 @@ pub enum ConfigError {
     PrinterNotFound(String),
 
     #[error("No default printer: {0}")]
+    #[allow(dead_code)] // Will be used in future features
     NoDefaultPrinter(String),
 }
