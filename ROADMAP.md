@@ -115,6 +115,34 @@ PulsePrint-CLI aims to be the premier command-line tool for monitoring and manag
 - [ ] Community automation recipes
 - [ ] Multi-language support
 
+## Release Strategy
+
+### GitHub Releases
+- **v0.1.0-alpha** (August 2025): GitHub releases only with clear alpha warnings
+- **Alpha/Beta phases**: Continue GitHub releases with pre-release tags (v0.1.0-alpha.1, v0.2.0-beta.1)
+- **Early access**: `cargo install --git` for Rust developers and early adopters
+
+### Package Manager Distribution Timeline
+
+#### Limited Distribution (v0.4.0+)
+- **AUR (Arch User Repository)**: Community expects bleeding-edge software
+- **GitHub releases**: Continue with beta tags
+
+#### Homebrew Distribution (v0.6.0+)
+- **v0.6.0**: Consider Homebrew tap for early TUI users
+- **v1.0.0**: Official Homebrew formula submission
+
+#### Major Package Managers (v1.0.0)
+- **Linux**: apt (Ubuntu/Debian), dnf (Fedora), pacman (Arch official)
+- **macOS**: Homebrew official formula
+- **Windows**: winget, chocolatey
+- **Rust**: crates.io official release
+
+### Distribution Philosophy
+- **Alpha/Beta**: GitHub-only with experimental warnings
+- **v0.6.0+**: Limited package managers for enthusiasts
+- **v1.0.0**: Full distribution - users expect stability and polish
+
 ## Development Priorities
 
 1. **Stability First**: Core MQTT functionality must be rock-solid
