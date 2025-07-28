@@ -111,7 +111,7 @@ cargo check                   # Check code without building
 
 **Test Structure:**
 - Unit tests: `src/config/tests.rs` - Configuration management tests
-- Unit tests: `src/mqtt/tests.rs` - MQTT client and connection tests
+- Unit tests: `src/mqtt/tests.rs` - MQTT client and connection tests  
 - Integration tests: `tests/integration_tests.rs` - CLI commands and full workflows
 
 **Test Coverage:**
@@ -137,7 +137,9 @@ cargo fmt            # Format code
 ```
 src/
 ├── main.rs          # CLI entry point and command handling
-├── config.rs        # Configuration management and data structures
+├── config/
+│   ├── mod.rs       # Configuration management and data structures
+│   └── tests.rs     # Configuration unit tests
 └── mqtt/
     ├── mod.rs       # MQTT client implementation with TLS
     └── tests.rs     # MQTT-specific unit tests
