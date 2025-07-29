@@ -147,6 +147,12 @@ Monitor a Bambu Labs printer via MQTT.
 - `monitor --name my-printer` - Monitor a specific configured printer
 - `monitor --ip 192.168.1.100 --device-id ... --access-code ...` - Direct connection without config
 
+**Monitor output example:**
+```
+🖨️ Print Status: Printing - Remaining: 16m 55s
+🖨️ Printer Status: 🌡️ Nozzle: 219.8°C | 🛏️ Bed: 45.0°C | 📄 Layer: 10 | ⏱️ Remaining: 16m | 📶 WiFi: -30dBm
+```
+
 ## Development
 
 ### Building
@@ -174,13 +180,17 @@ cargo check                   # Check code without building
 **Test Coverage:**
 - ✅ Printer configuration creation and validation
 - ✅ Configuration file save/load operations
-- ✅ Printer management (add, remove, default selection)
+- ✅ Printer management (add, remove, default selection)  
 - ✅ MQTT client configuration and creation
 - ✅ Connection parameter validation
 - ✅ CLI argument parsing and validation
 - ✅ Help command functionality
 - ✅ Error handling for invalid inputs
 - ✅ Topic format generation
+- ✅ MQTT message parsing (JSON structure)
+- ✅ Bambu Labs printer status parsing
+- ✅ Print state inference and display
+- ✅ Temperature and progress monitoring
 
 ### Code Quality
 
@@ -197,6 +207,9 @@ src/
 ├── config/
 │   ├── mod.rs       # Configuration management and data structures
 │   └── tests.rs     # Configuration unit tests
+├── messages/
+│   ├── mod.rs       # MQTT message parsing and printer status
+│   └── tests.rs     # Message parsing unit tests
 └── mqtt/
     ├── mod.rs       # MQTT client implementation with TLS
     └── tests.rs     # MQTT-specific unit tests
@@ -318,6 +331,9 @@ The configuration file is automatically stored in the appropriate location for y
 - ✅ Printer management CLI commands (add, remove, list, set-default)
 - ✅ Message parsing for MQTT JSON messages (issue #15)
 - ✅ Real-time status display with print progress
+- ✅ Simple status polling functionality (issue #16)
+- ✅ Bambu Labs printer status parsing with temperatures, layers, and timing
+- ✅ Print state inference and visual status indicators
 - 🚧 Advanced status monitoring and display (planned for issue #6)
 - 🚧 Command sending capabilities (planned)
 - 🚧 File upload support (planned)

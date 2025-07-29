@@ -224,3 +224,75 @@ fn test_unknown_command() {
         _ => panic!("Expected Unknown message type"),
     }
 }
+
+#[test]
+fn test_parse_message_with_device_info() {
+    let json_data = r#"{
+        "system": {
+            "command": "pushall"
+        },
+        "model": "X1 Carbon",
+        "sn": "12345678901234567890",
+        "ota": {
+            "version": "1.2.3.4"
+        },
+        "wifi": {
+            "ssid": "MyNetwork"
+        },
+        "temp": {
+            "bed_temp": 60.5,
+            "nozzle_temp": 210.2
+        }
+    }"#;
+
+    let message = DeviceMessage::parse(json_data).unwrap();
+
+    // Check that extra fields are captured
+    assert!(message.extra.contains_key("model"));
+    assert!(message.extra.contains_key("sn"));
+    assert!(message.extra.contains_key("ota"));
+    assert!(message.extra.contains_key("wifi"));
+    assert!(message.extra.contains_key("temp"));
+
+    // Check specific values
+    assert_eq!(
+        message.extra.get("model"),
+        Some(&serde_json::json!("X1 Carbon"))
+    );
+    assert_eq!(
+        message.extra.get("sn"),
+        Some(&serde_json::json!("12345678901234567890"))
+    );
+}
+
+#[test]
+fn test_parse_bambu_print_status_message() {
+    let json_data = r#"{
+        "print": {
+            "nozzle_temper": 219.84375,
+            "bed_temper": 44.96875,
+            "mc_remaining_time": 1015,
+            "wifi_signal": "-30dBm",
+            "layer_num": 10,
+            "command": "push_status",
+            "msg": 1,
+            "sequence_id": "13738"
+        }
+    }"#;
+
+    let message = DeviceMessage::parse(json_data).unwrap();
+
+    assert!(message.print.is_some());
+    let print = message.print.as_ref().unwrap();
+    assert_eq!(print.command, Some("push_status".to_string()));
+    assert_eq!(print.nozzle_temper, Some(219.84375));
+    assert_eq!(print.bed_temper, Some(44.96875));
+    assert_eq!(print.mc_remaining_time, Some(1015));
+    assert_eq!(print.layer_num, Some(10));
+    assert_eq!(print.wifi_signal, Some("-30dBm".to_string()));
+
+    // Test state inference for printing
+    let status = PrinterStatus::from_device_message(&message).unwrap();
+    assert_eq!(status.state, PrintState::Printing); // Should infer printing from remaining time
+    assert_eq!(status.remaining_time, Some(1015));
+}

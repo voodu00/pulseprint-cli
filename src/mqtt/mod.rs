@@ -108,6 +108,7 @@ impl MqttClient {
             "Connected to printer '{}' at {} and subscribed to {}",
             self.config.name, self.config.ip, report_topic
         );
+        println!("📡 Monitoring printer status - Press Ctrl+C to stop...");
 
         Ok(())
     }
