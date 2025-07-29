@@ -28,22 +28,44 @@ cargo build --release
 
 ## Usage
 
-### Basic Monitoring
+### Printer Management
 
-Monitor a Bambu Labs printer by providing the required connection details:
+First, add your printer to the configuration:
 
 ```bash
-cargo run -- monitor \
-  --printer <PRINTER_IP> \
-  --device-id <DEVICE_ID> \
-  --access-code <ACCESS_CODE>
+cargo run -- add \
+  --name "my-x1c" \
+  --ip 192.168.1.100 \
+  --device-id 01S00A000000000 \
+  --access-code 12345678 \
+  --set-default
 ```
 
-### Example
+List all configured printers:
+
+```bash
+cargo run -- list
+```
+
+### Basic Monitoring
+
+Monitor your default printer:
+
+```bash
+cargo run -- monitor
+```
+
+Monitor a specific printer by name:
+
+```bash
+cargo run -- monitor --name "my-x1c"
+```
+
+Or provide connection details directly:
 
 ```bash
 cargo run -- monitor \
-  --printer 192.168.1.100 \
+  --ip 192.168.1.100 \
   --device-id 01S00A000000000 \
   --access-code 12345678
 ```
@@ -81,14 +103,49 @@ PulsePrint-CLI connects to Bambu Labs printers using the following specification
 - `-h, --help`: Print help information
 - `-V, --version`: Print version information
 
+### Add Command
+
+Add a new printer configuration.
+
+**Arguments:**
+- `-n, --name <NAME>`: Printer name (unique identifier)
+- `-i, --ip <IP>`: Printer IP address
+- `-d, --device-id <ID>`: Device ID of the printer
+- `-a, --access-code <CODE>`: LAN access code for the printer
+- `--set-default`: Set as default printer (optional)
+
+### List Command
+
+List all configured printers.
+
+### Remove Command
+
+Remove a printer configuration.
+
+**Arguments:**
+- `<NAME>`: Name of the printer to remove
+
+### Set-Default Command
+
+Set the default printer.
+
+**Arguments:**
+- `<NAME>`: Name of the printer to set as default
+
 ### Monitor Command
 
 Monitor a Bambu Labs printer via MQTT.
 
-**Required Arguments:**
-- `-p, --printer <IP>`: Printer IP address
-- `-d, --device-id <ID>`: Device ID of the printer  
-- `-a, --access-code <CODE>`: LAN access code for authentication
+**Arguments (all optional):**
+- `-n, --name <NAME>`: Printer name from config (uses default if not specified)
+- `-i, --ip <IP>`: Printer IP address (overrides config)
+- `-d, --device-id <ID>`: Device ID of the printer (overrides config)
+- `-a, --access-code <CODE>`: LAN access code for authentication (overrides config)
+
+**Usage patterns:**
+- `monitor` - Monitor the default printer
+- `monitor --name my-printer` - Monitor a specific configured printer
+- `monitor --ip 192.168.1.100 --device-id ... --access-code ...` - Direct connection without config
 
 ## Development
 
@@ -252,16 +309,18 @@ The configuration file is automatically stored in the appropriate location for y
 
 🚧 **Currently in Development**
 
-- ✅ MQTT connection with TLS support
+- ✅ MQTT connection with TLS support (issue #14)
 - ✅ Basic printer monitoring
 - ✅ CLI interface with help system
 - ✅ Error handling and retry logic
 - ✅ Configuration management system
-- ✅ Multiple printer data structures
-- 🚧 Printer management CLI commands (planned for issue #5)
-- 🚧 Real-time status monitoring and display (planned for issue #6)
-- 🚧 Message parsing and display (in progress)
+- ✅ Multiple printer support with named configurations
+- ✅ Printer management CLI commands (add, remove, list, set-default)
+- ✅ Message parsing for MQTT JSON messages (issue #15)
+- ✅ Real-time status display with print progress
+- 🚧 Advanced status monitoring and display (planned for issue #6)
 - 🚧 Command sending capabilities (planned)
+- 🚧 File upload support (planned)
 
 ## Acknowledgments
 

@@ -136,14 +136,12 @@ impl AppConfig {
         Ok(printer)
     }
 
-    #[allow(dead_code)] // Will be used in future features
     pub fn get_printer(&self, name: &str) -> Result<&PrinterConfig, ConfigError> {
         self.printers
             .get(name)
             .ok_or_else(|| ConfigError::PrinterNotFound(format!("Printer '{name}' not found")))
     }
 
-    #[allow(dead_code)] // Will be used in future features
     pub fn get_default_printer(&self) -> Result<&PrinterConfig, ConfigError> {
         let name = self.default_printer.as_ref().ok_or_else(|| {
             ConfigError::NoDefaultPrinter("No default printer configured".to_string())
@@ -168,6 +166,11 @@ impl AppConfig {
     }
 
     pub fn get_config_path() -> PathBuf {
+        // Check for test environment override
+        if let Ok(test_config_dir) = std::env::var("PULSEPRINT_TEST_CONFIG_DIR") {
+            return PathBuf::from(test_config_dir).join("config.json");
+        }
+        
         if let Some(config_dir) = dirs::config_dir() {
             config_dir.join("pulseprint-cli").join("config.json")
         } else {
@@ -194,6 +197,5 @@ pub enum ConfigError {
     PrinterNotFound(String),
 
     #[error("No default printer: {0}")]
-    #[allow(dead_code)] // Will be used in future features
     NoDefaultPrinter(String),
 }

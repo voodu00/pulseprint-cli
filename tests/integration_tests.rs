@@ -39,22 +39,129 @@ fn test_monitor_help_command() {
 
     let stdout = String::from_utf8(output.stdout).expect("Invalid UTF-8");
     assert!(stdout.contains("Monitor a Bambu Labs printer via MQTT"));
-    assert!(stdout.contains("--printer"));
+    assert!(stdout.contains("--name"));
+    assert!(stdout.contains("--ip"));
     assert!(stdout.contains("--device-id"));
     assert!(stdout.contains("--access-code"));
 }
 
 #[test]
-fn test_monitor_missing_arguments() {
-    let output = Command::new("cargo")
+fn test_monitor_no_config() {
+    use std::time::Duration;
+    use std::io::{BufRead, BufReader};
+    
+    // Create a temporary empty config directory to ensure no printers are configured
+    let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
+    
+    // Spawn the monitor command with a custom config directory
+    let mut child = Command::new("cargo")
         .args(&["run", "--", "monitor"])
-        .output()
+        .env("PULSEPRINT_TEST_CONFIG_DIR", temp_dir.path())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
         .expect("Failed to execute command");
 
-    assert!(!output.status.success());
+    // Read stderr to check for the expected error message
+    let stderr = child.stderr.take().expect("Failed to get stderr");
+    let reader = BufReader::new(stderr);
+    
+    let mut found_error = false;
+    let start = std::time::Instant::now();
+    
+    for line in reader.lines() {
+        if start.elapsed() > Duration::from_secs(5) {
+            break; // Timeout after 5 seconds
+        }
+        
+        if let Ok(line) = line {
+            if line.contains("No printers configured") || 
+               line.contains("Error loading printer configuration") {
+                found_error = true;
+                break;
+            }
+        }
+    }
+    
+    // Kill the process if it's still running
+    let _ = child.kill();
+    let _ = child.wait();
+    
+    assert!(found_error, "Expected 'No printers configured' error message");
+}
 
-    let stderr = String::from_utf8(output.stderr).expect("Invalid UTF-8");
-    assert!(stderr.contains("required arguments were not provided"));
+#[test]
+fn test_monitor_with_direct_params() {
+    use std::time::Duration;
+    use std::io::{BufRead, BufReader};
+    
+    // Create a temporary empty config directory
+    let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
+    
+    // Spawn monitor with direct parameters (will fail to connect but that's expected)
+    let mut child = Command::new("cargo")
+        .args(&[
+            "run", "--", "monitor",
+            "--ip", "192.168.1.100",
+            "--device-id", "01S00A000000000", 
+            "--access-code", "12345678"
+        ])
+        .env("PULSEPRINT_TEST_CONFIG_DIR", temp_dir.path())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("Failed to execute command");
+
+    // Read both stdout and stderr to check for connection attempt
+    let stdout = child.stdout.take().expect("Failed to get stdout");
+    let stderr = child.stderr.take().expect("Failed to get stderr");
+    
+    let stdout_reader = BufReader::new(stdout);
+    let stderr_reader = BufReader::new(stderr);
+    
+    let mut found_connection_attempt = false;
+    let start = std::time::Instant::now();
+    
+    // Check stdout
+    for line in stdout_reader.lines() {
+        if start.elapsed() > Duration::from_secs(5) {
+            break; // Timeout after 5 seconds
+        }
+        
+        if let Ok(line) = line {
+            if line.contains("Connecting to printer") && 
+               line.contains("192.168.1.100") &&
+               line.contains("01S00A000000000") {
+                found_connection_attempt = true;
+                break;
+            }
+        }
+    }
+    
+    // If not found in stdout, check stderr (in case of early errors)
+    if !found_connection_attempt {
+        for line in stderr_reader.lines() {
+            if start.elapsed() > Duration::from_secs(5) {
+                break;
+            }
+            
+            if let Ok(line) = line {
+                // Also accept connection error messages as proof the connection was attempted
+                if (line.contains("Connecting to printer") || 
+                    line.contains("connection error") ||
+                    line.contains("192.168.1.100")) &&
+                   line.contains("01S00A000000000") {
+                    found_connection_attempt = true;
+                    break;
+                }
+            }
+        }
+    }
+    
+    // Kill the process
+    let _ = child.kill();
+    let _ = child.wait();
+    
+    assert!(found_connection_attempt, "Expected connection attempt with provided parameters");
 }
 
 // Note: Skipping actual connection test to avoid hanging
@@ -140,7 +247,7 @@ fn test_list_empty_printers() {
 
     let output = Command::new("cargo")
         .args(&["run", "--", "list"])
-        .env("HOME", temp_dir.path()) // This won't work cross-platform, but good for basic testing
+        .env("PULSEPRINT_TEST_CONFIG_DIR", temp_dir.path())
         .output()
         .expect("Failed to execute command");
 
@@ -215,8 +322,10 @@ fn test_add_command_missing_arguments() {
 
 #[test]
 fn test_remove_nonexistent_printer() {
+    let temp_dir = tempdir().expect("Failed to create temp dir");
     let output = Command::new("cargo")
         .args(&["run", "--", "remove", "nonexistent"])
+        .env("PULSEPRINT_TEST_CONFIG_DIR", temp_dir.path())
         .output()
         .expect("Failed to execute command");
 
@@ -228,8 +337,10 @@ fn test_remove_nonexistent_printer() {
 
 #[test]
 fn test_set_default_nonexistent_printer() {
+    let temp_dir = tempdir().expect("Failed to create temp dir");
     let output = Command::new("cargo")
         .args(&["run", "--", "set-default", "nonexistent"])
+        .env("PULSEPRINT_TEST_CONFIG_DIR", temp_dir.path())
         .output()
         .expect("Failed to execute command");
 
