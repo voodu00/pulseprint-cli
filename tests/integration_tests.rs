@@ -47,12 +47,12 @@ fn test_monitor_help_command() {
 
 #[test]
 fn test_monitor_no_config() {
-    use std::time::Duration;
     use std::io::{BufRead, BufReader};
-    
+    use std::time::Duration;
+
     // Create a temporary empty config directory to ensure no printers are configured
     let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
-    
+
     // Spawn the monitor command with a custom config directory
     let mut child = Command::new("cargo")
         .args(&["run", "--", "monitor"])
@@ -64,46 +64,55 @@ fn test_monitor_no_config() {
     // Read stderr to check for the expected error message
     let stderr = child.stderr.take().expect("Failed to get stderr");
     let reader = BufReader::new(stderr);
-    
+
     let mut found_error = false;
     let start = std::time::Instant::now();
-    
+
     for line in reader.lines() {
         if start.elapsed() > Duration::from_secs(5) {
             break; // Timeout after 5 seconds
         }
-        
+
         if let Ok(line) = line {
-            if line.contains("No printers configured") || 
-               line.contains("Error loading printer configuration") {
+            if line.contains("No printers configured")
+                || line.contains("Error loading printer configuration")
+            {
                 found_error = true;
                 break;
             }
         }
     }
-    
+
     // Kill the process if it's still running
     let _ = child.kill();
     let _ = child.wait();
-    
-    assert!(found_error, "Expected 'No printers configured' error message");
+
+    assert!(
+        found_error,
+        "Expected 'No printers configured' error message"
+    );
 }
 
 #[test]
 fn test_monitor_with_direct_params() {
-    use std::time::Duration;
     use std::io::{BufRead, BufReader};
-    
+    use std::time::Duration;
+
     // Create a temporary empty config directory
     let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
-    
+
     // Spawn monitor with direct parameters (will fail to connect but that's expected)
     let mut child = Command::new("cargo")
         .args(&[
-            "run", "--", "monitor",
-            "--ip", "192.168.1.100",
-            "--device-id", "01S00A000000000", 
-            "--access-code", "12345678"
+            "run",
+            "--",
+            "monitor",
+            "--ip",
+            "192.168.1.100",
+            "--device-id",
+            "01S00A000000000",
+            "--access-code",
+            "12345678",
         ])
         .env("PULSEPRINT_TEST_CONFIG_DIR", temp_dir.path())
         .stdout(std::process::Stdio::piped())
@@ -114,54 +123,59 @@ fn test_monitor_with_direct_params() {
     // Read both stdout and stderr to check for connection attempt
     let stdout = child.stdout.take().expect("Failed to get stdout");
     let stderr = child.stderr.take().expect("Failed to get stderr");
-    
+
     let stdout_reader = BufReader::new(stdout);
     let stderr_reader = BufReader::new(stderr);
-    
+
     let mut found_connection_attempt = false;
     let start = std::time::Instant::now();
-    
+
     // Check stdout
     for line in stdout_reader.lines() {
         if start.elapsed() > Duration::from_secs(5) {
             break; // Timeout after 5 seconds
         }
-        
+
         if let Ok(line) = line {
-            if line.contains("Connecting to printer") && 
-               line.contains("192.168.1.100") &&
-               line.contains("01S00A000000000") {
+            if line.contains("Connecting to printer")
+                && line.contains("192.168.1.100")
+                && line.contains("01S00A000000000")
+            {
                 found_connection_attempt = true;
                 break;
             }
         }
     }
-    
+
     // If not found in stdout, check stderr (in case of early errors)
     if !found_connection_attempt {
         for line in stderr_reader.lines() {
             if start.elapsed() > Duration::from_secs(5) {
                 break;
             }
-            
+
             if let Ok(line) = line {
                 // Also accept connection error messages as proof the connection was attempted
-                if (line.contains("Connecting to printer") || 
-                    line.contains("connection error") ||
-                    line.contains("192.168.1.100")) &&
-                   line.contains("01S00A000000000") {
+                if (line.contains("Connecting to printer")
+                    || line.contains("connection error")
+                    || line.contains("192.168.1.100"))
+                    && line.contains("01S00A000000000")
+                {
                     found_connection_attempt = true;
                     break;
                 }
             }
         }
     }
-    
+
     // Kill the process
     let _ = child.kill();
     let _ = child.wait();
-    
-    assert!(found_connection_attempt, "Expected connection attempt with provided parameters");
+
+    assert!(
+        found_connection_attempt,
+        "Expected connection attempt with provided parameters"
+    );
 }
 
 // Note: Skipping actual connection test to avoid hanging

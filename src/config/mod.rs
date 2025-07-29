@@ -170,7 +170,7 @@ impl AppConfig {
         if let Ok(test_config_dir) = std::env::var("PULSEPRINT_TEST_CONFIG_DIR") {
             return PathBuf::from(test_config_dir).join("config.json");
         }
-        
+
         if let Some(config_dir) = dirs::config_dir() {
             config_dir.join("pulseprint-cli").join("config.json")
         } else {

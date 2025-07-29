@@ -301,7 +301,7 @@ fn load_printer_config(
         validate_ip_address(ip)?;
         validate_device_id(device_id)?;
         validate_access_code(access_code)?;
-        
+
         return Ok(config::PrinterConfig::new(
             name.clone().unwrap_or_else(|| "manual".to_string()),
             ip.clone(),
@@ -436,7 +436,7 @@ async fn handle_mqtt_message(publish: rumqttc::Publish) {
         Ok(message) => {
             let message_type = message.get_message_type();
             let sequence_id = message.get_sequence_id().unwrap_or("none");
-            
+
             match message_type {
                 messages::MessageType::PrintPushStatus => {
                     if let Some(status) = messages::PrinterStatus::from_device_message(&message) {
@@ -468,7 +468,7 @@ async fn handle_mqtt_message(publish: rumqttc::Publish) {
 
 fn handle_print_status(status: messages::PrinterStatus) {
     use messages::PrintState;
-    
+
     let state_icon = match &status.state {
         PrintState::Idle => "💤",
         PrintState::Printing => "🖨️",
@@ -477,27 +477,27 @@ fn handle_print_status(status: messages::PrinterStatus) {
         PrintState::Finished => "✅",
         PrintState::Unknown(_) => "❓",
     };
-    
+
     print!("{state_icon} Print Status: {:?}", status.state);
-    
+
     if let Some(progress) = status.progress {
         print!(" - Progress: {progress}%");
     }
-    
+
     if let Some(eta) = &status.eta {
         print!(" - ETA: {eta}");
     }
-    
+
     if let Some(remaining) = status.remaining_time {
         let minutes = remaining / 60;
         let seconds = remaining % 60;
         print!(" - Remaining: {minutes}m {seconds}s");
     }
-    
+
     if let Some(reason) = &status.fail_reason {
         print!(" - Failure: {reason}");
     }
-    
+
     println!();
 }
 
@@ -511,7 +511,7 @@ fn handle_pushall_message(message: &messages::DeviceMessage) {
             println!("  Progress: {percent}%");
         }
     }
-    
+
     // Display any additional fields from the pushall message
     if !message.extra.is_empty() {
         println!("  Additional fields:");
