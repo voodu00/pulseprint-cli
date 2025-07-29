@@ -1,6 +1,7 @@
 use clap::{Parser, Subcommand};
 
 mod config;
+mod messages;
 mod mqtt;
 
 /// PulsePrint-CLI: A tool for monitoring Bambu Labs printers via MQTT
@@ -15,17 +16,21 @@ struct Cli {
 enum Commands {
     /// Monitor a Bambu Labs printer via MQTT
     Monitor {
-        /// Printer IP address
+        /// Printer name from config (or use default if not specified)
         #[arg(short, long)]
-        printer: String,
+        name: Option<String>,
 
-        /// Device ID of the printer
-        #[arg(short, long)]
-        device_id: String,
+        /// Printer IP address (overrides config)
+        #[arg(short = 'i', long)]
+        ip: Option<String>,
 
-        /// LAN access code for the printer
+        /// Device ID of the printer (overrides config)
         #[arg(short, long)]
-        access_code: String,
+        device_id: Option<String>,
+
+        /// LAN access code for the printer (overrides config)
+        #[arg(short, long)]
+        access_code: Option<String>,
     },
     /// Add a new printer configuration
     Add {
@@ -69,18 +74,20 @@ async fn main() {
 
     match &cli.command {
         Some(Commands::Monitor {
-            printer,
+            name,
+            ip,
             device_id,
             access_code,
         }) => {
-            let config = config::PrinterConfig::new(
-                "temp".to_string(),
-                printer.clone(),
-                device_id.clone(),
-                access_code.clone(),
-            );
+            let printer_config = match load_printer_config(name, ip, device_id, access_code) {
+                Ok(config) => config,
+                Err(e) => {
+                    eprintln!("Error loading printer configuration: {e}");
+                    std::process::exit(1);
+                }
+            };
 
-            match monitor_printer(config).await {
+            match monitor_printer(printer_config).await {
                 Ok(_) => println!("Monitoring completed successfully"),
                 Err(e) => eprintln!("Error monitoring printer: {e}"),
             }
@@ -283,6 +290,63 @@ fn validate_access_code(access_code: &str) -> Result<(), Box<dyn std::error::Err
     Ok(())
 }
 
+fn load_printer_config(
+    name: &Option<String>,
+    ip: &Option<String>,
+    device_id: &Option<String>,
+    access_code: &Option<String>,
+) -> Result<config::PrinterConfig, Box<dyn std::error::Error>> {
+    // If all manual parameters are provided, use them directly
+    if let (Some(ip), Some(device_id), Some(access_code)) = (ip, device_id, access_code) {
+        validate_ip_address(ip)?;
+        validate_device_id(device_id)?;
+        validate_access_code(access_code)?;
+
+        return Ok(config::PrinterConfig::new(
+            name.clone().unwrap_or_else(|| "manual".to_string()),
+            ip.clone(),
+            device_id.clone(),
+            access_code.clone(),
+        ));
+    }
+
+    // Otherwise, load from config
+    let config_path = config::AppConfig::get_config_path();
+    let app_config = config::AppConfig::load_from_file(&config_path)?;
+
+    // Determine which printer to use
+    let printer_config = match name {
+        Some(printer_name) => {
+            // Use specified printer
+            app_config.get_printer(printer_name)?.clone()
+        }
+        None => {
+            // Use default printer
+            if app_config.printers.is_empty() {
+                return Err("No printers configured. Use 'add' command to add a printer.".into());
+            }
+            app_config.get_default_printer()?.clone()
+        }
+    };
+
+    // Apply any overrides
+    let mut final_config = printer_config;
+    if let Some(ip) = ip {
+        validate_ip_address(ip)?;
+        final_config.ip = ip.clone();
+    }
+    if let Some(device_id) = device_id {
+        validate_device_id(device_id)?;
+        final_config.device_id = device_id.clone();
+    }
+    if let Some(access_code) = access_code {
+        validate_access_code(access_code)?;
+        final_config.access_code = access_code.clone();
+    }
+
+    Ok(final_config)
+}
+
 async fn monitor_printer(config: config::PrinterConfig) -> Result<(), Box<dyn std::error::Error>> {
     const MAX_RETRIES: u32 = 5;
     const RETRY_DELAY_SECS: u64 = 5;
@@ -332,10 +396,17 @@ async fn attempt_connection(
     loop {
         match eventloop.poll().await {
             Ok(notification) => {
-                use rumqttc::Event;
+                use rumqttc::{Event, Packet};
                 match notification {
                     Event::Incoming(packet) => {
-                        println!("Received: {packet:?}");
+                        match packet {
+                            Packet::Publish(publish) => {
+                                handle_mqtt_message(publish).await;
+                            }
+                            _ => {
+                                // Other packet types (Subscribe, Connect, etc.)
+                            }
+                        }
                     }
                     Event::Outgoing(packet) => {
                         // Less verbose for outgoing packets
@@ -348,6 +419,104 @@ async fn attempt_connection(
             Err(e) => {
                 return Err(format!("MQTT connection error: {e}").into());
             }
+        }
+    }
+}
+
+async fn handle_mqtt_message(publish: rumqttc::Publish) {
+    let payload_str = match std::str::from_utf8(&publish.payload) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("Failed to parse message as UTF-8: {e}");
+            return;
+        }
+    };
+
+    match messages::DeviceMessage::parse(payload_str) {
+        Ok(message) => {
+            let message_type = message.get_message_type();
+            let sequence_id = message.get_sequence_id().unwrap_or("none");
+
+            match message_type {
+                messages::MessageType::PrintPushStatus => {
+                    if let Some(status) = messages::PrinterStatus::from_device_message(&message) {
+                        handle_print_status(status);
+                    }
+                }
+                messages::MessageType::PushingPushAll => {
+                    println!("📊 Received complete printer status (pushall)");
+                    handle_pushall_message(&message);
+                }
+                messages::MessageType::SystemPushAll => {
+                    println!("🔧 Received system information");
+                }
+                messages::MessageType::Unknown(cmd) => {
+                    println!("❓ Unknown message type: {cmd} (seq: {sequence_id})");
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("Failed to parse MQTT message: {e}");
+            if payload_str.len() < 1000 {
+                eprintln!("Raw message: {payload_str}");
+            } else {
+                eprintln!("Raw message (truncated): {}...", &payload_str[..500]);
+            }
+        }
+    }
+}
+
+fn handle_print_status(status: messages::PrinterStatus) {
+    use messages::PrintState;
+
+    let state_icon = match &status.state {
+        PrintState::Idle => "💤",
+        PrintState::Printing => "🖨️",
+        PrintState::Paused => "⏸️",
+        PrintState::Failed => "❌",
+        PrintState::Finished => "✅",
+        PrintState::Unknown(_) => "❓",
+    };
+
+    print!("{state_icon} Print Status: {:?}", status.state);
+
+    if let Some(progress) = status.progress {
+        print!(" - Progress: {progress}%");
+    }
+
+    if let Some(eta) = &status.eta {
+        print!(" - ETA: {eta}");
+    }
+
+    if let Some(remaining) = status.remaining_time {
+        let minutes = remaining / 60;
+        let seconds = remaining % 60;
+        print!(" - Remaining: {minutes}m {seconds}s");
+    }
+
+    if let Some(reason) = &status.fail_reason {
+        print!(" - Failure: {reason}");
+    }
+
+    println!();
+}
+
+fn handle_pushall_message(message: &messages::DeviceMessage) {
+    // Extract and display comprehensive printer information
+    if let Some(print_info) = &message.print {
+        if let Some(state) = &print_info.state {
+            println!("  Print State: {state}");
+        }
+        if let Some(percent) = print_info.percent {
+            println!("  Progress: {percent}%");
+        }
+    }
+
+    // Display any additional fields from the pushall message
+    if !message.extra.is_empty() {
+        println!("  Additional fields:");
+        for (key, value) in &message.extra {
+            println!("    {key}: {value}");
         }
     }
 }

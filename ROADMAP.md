@@ -10,24 +10,24 @@ PulsePrint-CLI aims to be the premier command-line tool for monitoring and manag
 
 #### v0.1.0 - Foundation (Target: August 2025)
 - [x] Basic CLI structure with clap
-- [ ] MQTT client implementation
-- [ ] Basic printer connection via local network
-- [ ] Simple status polling (`monitor` command)
-- [ ] Configuration file support (TOML)
-- [ ] Single printer monitoring
+- [x] MQTT client implementation (issue #14)
+- [x] Basic printer connection via local network
+- [x] Simple status polling (`monitor` command)
+- [x] Configuration file support (JSON)
+- [x] Single printer monitoring
 
 #### v0.2.0 - Core Monitoring (Target: September 2025)
-- [ ] Real-time status updates via MQTT subscriptions
-- [ ] Print progress tracking
+- [x] Real-time status updates via MQTT subscriptions
+- [x] Print progress tracking (issue #15)
 - [ ] Temperature monitoring
-- [ ] Error/warning detection
+- [x] Error/warning detection
 - [ ] Basic logging functionality
-- [ ] JSON output format option
+- [x] JSON message parsing (issue #15)
 
 #### v0.3.0 - Multi-Printer Support (Target: October 2025)
-- [ ] Multiple printer configuration
-- [ ] Printer management commands (add, remove, list)
-- [ ] Set default printer
+- [x] Multiple printer configuration
+- [x] Printer management commands (add, remove, list)
+- [x] Set default printer
 - [ ] Concurrent monitoring of multiple printers
 - [ ] Basic printer grouping
 
