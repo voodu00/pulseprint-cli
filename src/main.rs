@@ -442,6 +442,8 @@ async fn handle_mqtt_message(publish: rumqttc::Publish) {
                     if let Some(status) = messages::PrinterStatus::from_device_message(&message) {
                         handle_print_status(status);
                     }
+                    // Also show detailed Bambu-specific info
+                    handle_bambu_print_status(&message);
                 }
                 messages::MessageType::PushingPushAll => {
                     println!("📊 Received complete printer status (pushall)");
@@ -449,6 +451,7 @@ async fn handle_mqtt_message(publish: rumqttc::Publish) {
                 }
                 messages::MessageType::SystemPushAll => {
                     println!("🔧 Received system information");
+                    handle_system_message(&message);
                 }
                 messages::MessageType::Unknown(cmd) => {
                     println!("❓ Unknown message type: {cmd} (seq: {sequence_id})");
@@ -489,9 +492,14 @@ fn handle_print_status(status: messages::PrinterStatus) {
     }
 
     if let Some(remaining) = status.remaining_time {
-        let minutes = remaining / 60;
+        let hours = remaining / 3600;
+        let minutes = (remaining % 3600) / 60;
         let seconds = remaining % 60;
-        print!(" - Remaining: {minutes}m {seconds}s");
+        if hours > 0 {
+            print!(" - Remaining: {hours}h {minutes}m {seconds}s");
+        } else {
+            print!(" - Remaining: {minutes}m {seconds}s");
+        }
     }
 
     if let Some(reason) = &status.fail_reason {
@@ -499,6 +507,45 @@ fn handle_print_status(status: messages::PrinterStatus) {
     }
 
     println!();
+}
+
+// Enhanced function to show actual printer data from messages
+fn handle_bambu_print_status(message: &messages::DeviceMessage) {
+    if let Some(print_info) = &message.print {
+        let mut info_parts = Vec::new();
+
+        // Temperature info
+        if let Some(nozzle_temp) = print_info.nozzle_temper {
+            info_parts.push(format!("🌡️ Nozzle: {nozzle_temp:.1}°C"));
+        }
+
+        if let Some(bed_temp) = print_info.bed_temper {
+            info_parts.push(format!("🛏️ Bed: {bed_temp:.1}°C"));
+        }
+
+        // Print progress info
+        if let Some(layer) = print_info.layer_num {
+            info_parts.push(format!("📄 Layer: {layer}"));
+        }
+
+        if let Some(remaining) = print_info.mc_remaining_time {
+            let hours = remaining / 3600;
+            let minutes = (remaining % 3600) / 60;
+            if hours > 0 {
+                info_parts.push(format!("⏱️ Remaining: {hours}h {minutes}m"));
+            } else {
+                info_parts.push(format!("⏱️ Remaining: {minutes}m"));
+            }
+        }
+
+        if let Some(wifi) = &print_info.wifi_signal {
+            info_parts.push(format!("📶 WiFi: {wifi}"));
+        }
+
+        if !info_parts.is_empty() {
+            println!("🖨️ Printer Status: {}", info_parts.join(" | "));
+        }
+    }
 }
 
 fn handle_pushall_message(message: &messages::DeviceMessage) {
@@ -512,11 +559,67 @@ fn handle_pushall_message(message: &messages::DeviceMessage) {
         }
     }
 
-    // Display any additional fields from the pushall message
-    if !message.extra.is_empty() {
-        println!("  Additional fields:");
-        for (key, value) in &message.extra {
-            println!("    {key}: {value}");
+    // Display printer model and other device info from extra fields
+    display_device_info(&message.extra);
+}
+
+fn handle_system_message(message: &messages::DeviceMessage) {
+    // Display system information and device details
+    if let Some(system_info) = &message.system {
+        println!("  System Command: {:?}", system_info.command);
+    }
+
+    // Display device information from extra fields
+    display_device_info(&message.extra);
+}
+
+fn display_device_info(extra_fields: &std::collections::HashMap<String, serde_json::Value>) {
+    // Look for common device information fields
+    if let Some(model) = extra_fields.get("model") {
+        if let Some(model_str) = model.as_str() {
+            println!("  🖨️  Model: {model_str}");
+        }
+    }
+
+    if let Some(sn) = extra_fields.get("sn") {
+        if let Some(sn_str) = sn.as_str() {
+            println!("  🏷️  Serial Number: {sn_str}");
+        }
+    }
+
+    if let Some(firmware) = extra_fields.get("ota") {
+        if let Some(firmware_obj) = firmware.as_object() {
+            if let Some(version) = firmware_obj.get("version") {
+                if let Some(version_str) = version.as_str() {
+                    println!("  📦 Firmware: {version_str}");
+                }
+            }
+        }
+    }
+
+    if let Some(wifi) = extra_fields.get("wifi") {
+        if let Some(wifi_obj) = wifi.as_object() {
+            if let Some(ssid) = wifi_obj.get("ssid") {
+                if let Some(ssid_str) = ssid.as_str() {
+                    println!("  📶 WiFi: {ssid_str}");
+                }
+            }
+        }
+    }
+
+    // Display temperature information if available
+    if let Some(temp) = extra_fields.get("temp") {
+        if let Some(temp_obj) = temp.as_object() {
+            if let Some(bed_temp) = temp_obj.get("bed_temp") {
+                if let Some(bed_current) = bed_temp.as_f64() {
+                    println!("  🌡️  Bed Temperature: {bed_current}°C");
+                }
+            }
+            if let Some(nozzle_temp) = temp_obj.get("nozzle_temp") {
+                if let Some(nozzle_current) = nozzle_temp.as_f64() {
+                    println!("  🌡️  Nozzle Temperature: {nozzle_current}°C");
+                }
+            }
         }
     }
 }

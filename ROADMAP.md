@@ -19,8 +19,10 @@ PulsePrint-CLI aims to be the premier command-line tool for monitoring and manag
 #### v0.2.0 - Core Monitoring (Target: September 2025)
 - [x] Real-time status updates via MQTT subscriptions
 - [x] Print progress tracking (issue #15)
-- [ ] Temperature monitoring
+- [x] Temperature monitoring (issue #16)
 - [x] Error/warning detection
+- [x] Simple status polling (issue #16)
+- [x] Print state inference and display
 - [ ] Basic logging functionality
 - [x] JSON message parsing (issue #15)
 

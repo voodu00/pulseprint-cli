@@ -77,6 +77,25 @@ pub struct PrintInfo {
     #[serde(rename = "remaining_time")]
     pub remaining_time: Option<u32>,
 
+    // Actual Bambu Labs printer fields
+    #[serde(rename = "nozzle_temper")]
+    pub nozzle_temper: Option<f64>,
+
+    #[serde(rename = "bed_temper")]
+    pub bed_temper: Option<f64>,
+
+    #[serde(rename = "mc_remaining_time")]
+    pub mc_remaining_time: Option<u32>,
+
+    #[serde(rename = "layer_num")]
+    pub layer_num: Option<u32>,
+
+    #[serde(rename = "wifi_signal")]
+    pub wifi_signal: Option<String>,
+
+    #[serde(rename = "fan_gear")]
+    pub fan_gear: Option<u32>,
+
     #[serde(flatten)]
     pub extra: HashMap<String, Value>,
 }
@@ -217,17 +236,29 @@ impl PrinterStatus {
     pub fn from_device_message(msg: &DeviceMessage) -> Option<Self> {
         let print = msg.print.as_ref()?;
 
-        let state = print
-            .state
-            .as_deref()
-            .map(PrintState::from)
-            .unwrap_or(PrintState::Unknown("no_state".to_string()));
+        // Try to get explicit state first, then infer from available data
+        let state = if let Some(explicit_state) = &print.state {
+            PrintState::from(explicit_state.as_str())
+        } else {
+            // Infer state from available data
+            if print.mc_remaining_time.is_some() && print.mc_remaining_time.unwrap_or(0) > 0 {
+                PrintState::Printing
+            } else if print.nozzle_temper.is_some() && print.nozzle_temper.unwrap_or(0.0) > 50.0 {
+                // Nozzle is hot, likely printing or recently finished
+                PrintState::Printing
+            } else {
+                PrintState::Idle
+            }
+        };
+
+        // Use mc_remaining_time if available, fallback to remaining_time
+        let remaining_time = print.mc_remaining_time.or(print.remaining_time);
 
         Some(PrinterStatus {
             state,
             progress: print.percent,
             eta: print.eta.clone(),
-            remaining_time: print.remaining_time,
+            remaining_time,
             total_time: print.total_time,
             fail_reason: print.fail_reason.clone(),
         })
