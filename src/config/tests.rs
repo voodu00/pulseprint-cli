@@ -228,7 +228,18 @@ fn test_list_printers() {
 fn test_config_path() {
     let path = AppConfig::get_config_path();
     assert!(path.to_string_lossy().contains("pulseprint-cli"));
-    assert!(path.to_string_lossy().ends_with("config.json"));
+    assert!(path.to_string_lossy().ends_with("config.toml"));
+}
+
+#[test]
+fn test_config_path_formats() {
+    use super::ConfigFormat;
+
+    let toml_path = AppConfig::get_config_path_with_format(ConfigFormat::Toml);
+    assert!(toml_path.to_string_lossy().ends_with("config.toml"));
+
+    let json_path = AppConfig::get_config_path_with_format(ConfigFormat::Json);
+    assert!(json_path.to_string_lossy().ends_with("config.json"));
 }
 
 #[test]
@@ -274,4 +285,125 @@ fn test_error_conditions() {
     app_config.remove_printer("test_printer").unwrap();
     let err = app_config.get_default_printer().unwrap_err();
     assert!(matches!(err, ConfigError::NoDefaultPrinter(_)));
+}
+
+#[test]
+fn test_toml_format_support() {
+    let temp_dir = tempdir().unwrap();
+    let toml_path = temp_dir.path().join("config.toml");
+
+    // Create a config and save as TOML
+    let mut config = AppConfig::default();
+    let printer = PrinterConfig::new(
+        "test_printer".to_string(),
+        "192.168.1.100".to_string(),
+        "device123".to_string(),
+        "12345678".to_string(),
+    );
+    config
+        .add_printer("test_printer".to_string(), printer)
+        .unwrap();
+    config.set_default_printer("test_printer").unwrap();
+
+    config.save_to_file(&toml_path).unwrap();
+
+    // Verify file exists and is in TOML format
+    assert!(toml_path.exists());
+    let content = fs::read_to_string(&toml_path).unwrap();
+    assert!(content.contains("[printers.test_printer]")); // TOML table syntax
+    assert!(content.contains("default_printer = \"test_printer\""));
+
+    // Load it back and verify
+    let loaded_config = AppConfig::load_from_file(&toml_path).unwrap();
+    assert_eq!(loaded_config.printers.len(), 1);
+    assert_eq!(
+        loaded_config.default_printer,
+        Some("test_printer".to_string())
+    );
+}
+
+#[test]
+fn test_json_format_support() {
+    let temp_dir = tempdir().unwrap();
+    let json_path = temp_dir.path().join("config.json");
+
+    // Create a config and save as JSON
+    let mut config = AppConfig::default();
+    let printer = PrinterConfig::new(
+        "test_printer".to_string(),
+        "192.168.1.100".to_string(),
+        "device123".to_string(),
+        "12345678".to_string(),
+    );
+    config
+        .add_printer("test_printer".to_string(), printer)
+        .unwrap();
+    config.set_default_printer("test_printer").unwrap();
+
+    config.save_to_file(&json_path).unwrap();
+
+    // Verify file exists and is in JSON format
+    assert!(json_path.exists());
+    let content = fs::read_to_string(&json_path).unwrap();
+    assert!(content.contains("\"printers\""));
+    assert!(content.contains("\"default_printer\": \"test_printer\""));
+
+    // Load it back and verify
+    let loaded_config = AppConfig::load_from_file(&json_path).unwrap();
+    assert_eq!(loaded_config.printers.len(), 1);
+    assert_eq!(
+        loaded_config.default_printer,
+        Some("test_printer".to_string())
+    );
+}
+
+#[test]
+fn test_format_detection() {
+    use super::ConfigFormat;
+    use std::path::PathBuf;
+
+    let toml_path = PathBuf::from("config.toml");
+    let json_path = PathBuf::from("config.json");
+    let no_ext_path = PathBuf::from("config");
+
+    assert!(matches!(
+        AppConfig::detect_format(&toml_path),
+        ConfigFormat::Toml
+    ));
+    assert!(matches!(
+        AppConfig::detect_format(&json_path),
+        ConfigFormat::Json
+    ));
+    assert!(matches!(
+        AppConfig::detect_format(&no_ext_path),
+        ConfigFormat::Toml
+    )); // Default to TOML
+}
+
+#[test]
+fn test_existing_config_file_discovery() {
+    let temp_dir = tempdir().unwrap();
+    let base_dir = temp_dir.path();
+
+    // Create a JSON config file
+    let json_path = base_dir.join("config.json");
+    let mut config = AppConfig::default();
+    let printer = PrinterConfig::new(
+        "json_printer".to_string(),
+        "192.168.1.101".to_string(),
+        "device456".to_string(),
+        "87654321".to_string(),
+    );
+    config
+        .add_printer("json_printer".to_string(), printer)
+        .unwrap();
+    config.save_to_file(&json_path).unwrap();
+
+    // Try to load via TOML path (which doesn't exist)
+    let toml_path = base_dir.join("config.toml");
+    let loaded_config = AppConfig::load_from_file(&toml_path).unwrap();
+
+    // Should have found and loaded the JSON file
+    assert_eq!(loaded_config.printers.len(), 1);
+    assert!(loaded_config.printers.contains_key("json_printer"));
 }

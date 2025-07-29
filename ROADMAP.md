@@ -13,7 +13,7 @@ PulsePrint-CLI aims to be the premier command-line tool for monitoring and manag
 - [x] MQTT client implementation (issue #14)
 - [x] Basic printer connection via local network
 - [x] Simple status polling (`monitor` command)
-- [x] Configuration file support (JSON)
+- [x] Configuration file support with TOML and JSON formats (issue #17)
 - [x] Single printer monitoring
 
 #### v0.2.0 - Core Monitoring (Target: September 2025)
