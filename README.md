@@ -281,17 +281,49 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Configuration System
 
-PulsePrint-CLI now includes a comprehensive configuration system for managing multiple printers.
+PulsePrint-CLI includes a comprehensive configuration system for managing multiple printers with support for both TOML and JSON formats.
+
+### Configuration File Formats
+
+PulsePrint-CLI supports both **TOML** (preferred) and **JSON** configuration formats:
+
+- **New installations**: Default to TOML format (`config.toml`)
+- **Existing installations**: Continue to support JSON format (`config.json`) 
+- **Format detection**: Automatic based on file extension
+- **Backward compatibility**: Existing JSON configs work seamlessly
 
 ### Configuration File Location
 
-The configuration file is automatically stored in the appropriate location for your operating system:
+Configuration files are automatically stored in the appropriate location for your operating system:
 
-- **Linux**: `~/.config/pulseprint-cli/config.json`
-- **macOS**: `~/Library/Application Support/pulseprint-cli/config.json`
-- **Windows**: `%APPDATA%\pulseprint-cli\config.json`
+- **Linux**: `~/.config/pulseprint-cli/config.toml` (or `config.json`)
+- **macOS**: `~/Library/Application Support/pulseprint-cli/config.toml` (or `config.json`)
+- **Windows**: `%APPDATA%\pulseprint-cli\config.toml` (or `config.json`)
 
 ### Configuration Structure
+
+#### TOML Format (Preferred)
+
+```toml
+default_printer = "my_printer"
+
+[printers.my_printer]
+name = "my_printer"
+ip = "192.168.1.100"
+device_id = "01S00A000000000"
+access_code = "12345678"
+port = 8883
+use_tls = true
+
+[mqtt_settings]
+keep_alive_secs = 30
+connection_timeout_secs = 10
+retry_attempts = 5
+retry_delay_secs = 5
+queue_size = 10
+```
+
+#### JSON Format (Legacy Support)
 
 ```json
 {
@@ -326,7 +358,7 @@ The configuration file is automatically stored in the appropriate location for y
 - ✅ Basic printer monitoring
 - ✅ CLI interface with help system
 - ✅ Error handling and retry logic
-- ✅ Configuration management system
+- ✅ Configuration management system with TOML and JSON support (issue #17)
 - ✅ Multiple printer support with named configurations
 - ✅ Printer management CLI commands (add, remove, list, set-default)
 - ✅ Message parsing for MQTT JSON messages (issue #15)

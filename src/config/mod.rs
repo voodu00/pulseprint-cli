@@ -1,10 +1,16 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[cfg(test)]
 mod tests;
+
+#[derive(Debug, Clone)]
+pub enum ConfigFormat {
+    Json,
+    Toml,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PrinterConfig {
@@ -77,16 +83,57 @@ impl Default for MqttSettings {
 }
 
 impl AppConfig {
+    pub fn detect_format(path: &Path) -> ConfigFormat {
+        match path.extension().and_then(|ext| ext.to_str()) {
+            Some("toml") => ConfigFormat::Toml,
+            Some("json") => ConfigFormat::Json,
+            _ => ConfigFormat::Toml, // Default to TOML for new configs
+        }
+    }
+
     pub fn load_from_file(path: &PathBuf) -> Result<Self, ConfigError> {
+        // Try both formats if the specified file doesn't exist
         if !path.exists() {
+            // Try to find existing config in either format
+            if let Some(existing_path) = Self::find_existing_config_file(path) {
+                return Self::load_from_existing_file(&existing_path);
+            }
             return Ok(Self::default());
         }
 
+        Self::load_from_existing_file(path)
+    }
+
+    fn find_existing_config_file(preferred_path: &Path) -> Option<PathBuf> {
+        let base_dir = preferred_path.parent()?;
+
+        // Try TOML first, then JSON
+        let toml_path = base_dir.join("config.toml");
+        let json_path = base_dir.join("config.json");
+
+        if toml_path.exists() {
+            Some(toml_path)
+        } else if json_path.exists() {
+            Some(json_path)
+        } else {
+            None
+        }
+    }
+
+    fn load_from_existing_file(path: &PathBuf) -> Result<Self, ConfigError> {
         let contents = fs::read_to_string(path)
             .map_err(|e| ConfigError::IoError(format!("Failed to read config file: {e}")))?;
 
-        let config: AppConfig = serde_json::from_str(&contents)
-            .map_err(|e| ConfigError::ParseError(format!("Failed to parse config: {e}")))?;
+        let format = Self::detect_format(path);
+
+        let config: AppConfig = match format {
+            ConfigFormat::Json => serde_json::from_str(&contents).map_err(|e| {
+                ConfigError::ParseError(format!("Failed to parse JSON config: {e}"))
+            })?,
+            ConfigFormat::Toml => toml::from_str(&contents).map_err(|e| {
+                ConfigError::ParseError(format!("Failed to parse TOML config: {e}"))
+            })?,
+        };
 
         Ok(config)
     }
@@ -98,8 +145,16 @@ impl AppConfig {
             })?;
         }
 
-        let contents = serde_json::to_string_pretty(self)
-            .map_err(|e| ConfigError::SerializeError(format!("Failed to serialize config: {e}")))?;
+        let format = Self::detect_format(path);
+
+        let contents = match format {
+            ConfigFormat::Json => serde_json::to_string_pretty(self).map_err(|e| {
+                ConfigError::SerializeError(format!("Failed to serialize JSON config: {e}"))
+            })?,
+            ConfigFormat::Toml => toml::to_string_pretty(self).map_err(|e| {
+                ConfigError::SerializeError(format!("Failed to serialize TOML config: {e}"))
+            })?,
+        };
 
         fs::write(path, contents)
             .map_err(|e| ConfigError::IoError(format!("Failed to write config file: {e}")))?;
@@ -166,15 +221,26 @@ impl AppConfig {
     }
 
     pub fn get_config_path() -> PathBuf {
+        Self::get_config_path_with_format(ConfigFormat::Toml)
+    }
+
+    pub fn get_config_path_with_format(format: ConfigFormat) -> PathBuf {
+        let extension = match format {
+            ConfigFormat::Json => "json",
+            ConfigFormat::Toml => "toml",
+        };
+
         // Check for test environment override
         if let Ok(test_config_dir) = std::env::var("PULSEPRINT_TEST_CONFIG_DIR") {
-            return PathBuf::from(test_config_dir).join("config.json");
+            return PathBuf::from(test_config_dir).join(format!("config.{extension}"));
         }
 
         if let Some(config_dir) = dirs::config_dir() {
-            config_dir.join("pulseprint-cli").join("config.json")
+            config_dir
+                .join("pulseprint-cli")
+                .join(format!("config.{extension}"))
         } else {
-            PathBuf::from(".pulseprint-config.json")
+            PathBuf::from(format!(".pulseprint-config.{extension}"))
         }
     }
 }
