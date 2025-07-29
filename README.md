@@ -269,11 +269,15 @@ This project implements the [OpenBambuAPI](https://github.com/Doridian/OpenBambu
 
 ## Contributing
 
+We follow a Git flow branching model:
+- `main` - Stable releases only
+- `develop` - Active development branch
+
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+2. Create a feature branch from `develop` (`git checkout -b feature/amazing-feature develop`)
 3. Commit your changes (`git commit -m 'Add amazing feature'`)
 4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+5. Open a Pull Request targeting the `develop` branch
 
 ## License
 
