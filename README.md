@@ -5,10 +5,11 @@ A Rust-based command-line tool for monitoring Bambu Labs 3D printers via MQTT wi
 ## Features
 
 - 🔐 **Secure MQTT Connection**: TLS-encrypted connections to Bambu Labs printers
-- 🔄 **Auto-Retry Logic**: Robust connection handling with configurable retry attempts
-- 📊 **Real-time Monitoring**: Live status updates from printer MQTT topics
+- 🔄 **Auto-Reconnection**: Automatic reconnection with exponential backoff
+- 📊 **Real-time Monitoring**: Event-driven MQTT subscriptions for instant status updates
+- 📨 **Message Queue**: Built-in backpressure handling for reliable message processing
 - 🛠️ **CLI Interface**: Easy-to-use command-line interface with comprehensive help
-- ⚙️ **Configuration Management**: JSON-based configuration system for managing multiple printers
+- ⚙️ **Configuration Management**: TOML/JSON-based configuration system for managing multiple printers
 - 🏠 **Cross-Platform Config**: Automatic configuration directory detection (Linux/macOS/Windows)
 
 ## Installation
@@ -212,6 +213,7 @@ src/
 │   └── tests.rs     # Message parsing unit tests
 └── mqtt/
     ├── mod.rs       # MQTT client implementation with TLS
+    ├── subscription.rs # Real-time subscription management
     └── tests.rs     # MQTT-specific unit tests
 ```
 
@@ -221,8 +223,10 @@ src/
 
 - **Client Library**: [rumqttc](https://crates.io/crates/rumqttc) v0.24
 - **TLS Support**: Native TLS with certificate validation
-- **Connection Handling**: Automatic retry with exponential backoff
-- **Topic Subscription**: Automatic subscription to device report topics
+- **Connection Handling**: Automatic reconnection with exponential backoff
+- **Topic Subscription**: Real-time event-driven subscriptions to device report topics
+- **Message Processing**: Async message handling with separate subscription and processing tasks
+- **Reliability**: Built-in message queue with 100-message buffer for backpressure handling
 
 ### Dependencies
 
@@ -370,6 +374,7 @@ queue_size = 10
 - ✅ Simple status polling functionality (issue #16)
 - ✅ Bambu Labs printer status parsing with temperatures, layers, and timing
 - ✅ Print state inference and visual status indicators
+- ✅ Real-time MQTT subscriptions with event-driven updates (issue #19)
 - 🚧 Advanced status monitoring and display (planned for issue #6)
 - 🚧 Command sending capabilities (planned)
 - 🚧 File upload support (planned)

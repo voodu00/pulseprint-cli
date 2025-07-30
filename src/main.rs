@@ -347,124 +347,98 @@ fn load_printer_config(
     Ok(final_config)
 }
 
-async fn monitor_printer(config: config::PrinterConfig) -> Result<(), Box<dyn std::error::Error>> {
-    const MAX_RETRIES: u32 = 5;
-    const RETRY_DELAY_SECS: u64 = 5;
+async fn monitor_printer(
+    config: config::PrinterConfig,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    use mqtt::subscription::{MessageProcessor, SubscriptionEvent, SubscriptionManager};
+    use tokio::sync::mpsc;
 
-    let mut retry_count = 0;
+    // Create message channel with buffer for backpressure handling
+    let (event_sender, event_receiver) = mpsc::channel::<SubscriptionEvent>(100);
 
-    loop {
-        println!(
-            "Connecting to printer '{}' at {} with device ID {} (attempt {}/{})",
-            config.name,
-            config.ip,
-            config.device_id,
-            retry_count + 1,
-            MAX_RETRIES + 1
-        );
-
-        match attempt_connection(&config).await {
-            Ok(_) => {
-                println!("Connection successful! Monitoring stopped.");
-                return Ok(());
-            }
-            Err(e) => {
-                eprintln!("Connection attempt failed: {e}");
-
-                retry_count += 1;
-                if retry_count > MAX_RETRIES {
-                    return Err(
-                        format!("Failed to connect after {} attempts", MAX_RETRIES + 1).into(),
-                    );
-                }
-
-                println!("Retrying in {RETRY_DELAY_SECS} seconds...");
-                tokio::time::sleep(tokio::time::Duration::from_secs(RETRY_DELAY_SECS)).await;
-            }
-        }
-    }
-}
-
-async fn attempt_connection(
-    config: &config::PrinterConfig,
-) -> Result<(), Box<dyn std::error::Error>> {
+    // Create MQTT client
     let mqtt_client = mqtt::MqttClient::new(config.clone()).await?;
-    mqtt_client.connect().await?;
+    let (client, eventloop) = mqtt_client.into_parts();
 
-    let mut eventloop = mqtt_client.get_eventloop();
+    // Create subscription manager
+    let mut subscription_manager =
+        SubscriptionManager::new(client, eventloop, config, event_sender);
 
-    loop {
-        match eventloop.poll().await {
-            Ok(notification) => {
-                use rumqttc::{Event, Packet};
-                match notification {
-                    Event::Incoming(packet) => {
-                        match packet {
-                            Packet::Publish(publish) => {
-                                handle_mqtt_message(publish).await;
-                            }
-                            _ => {
-                                // Other packet types (Subscribe, Connect, etc.)
-                            }
-                        }
-                    }
-                    Event::Outgoing(packet) => {
-                        // Less verbose for outgoing packets
-                        if let rumqttc::Outgoing::Publish(_) = packet {
-                            // Only log actual publishes, not pings
-                        }
-                    }
-                }
-            }
-            Err(e) => {
-                return Err(format!("MQTT connection error: {e}").into());
-            }
+    // Start subscription
+    subscription_manager.start_subscription().await?;
+
+    // Create message processor
+    let message_processor = MessageProcessor::new(event_receiver);
+
+    // Spawn subscription task
+    let subscription_handle = tokio::spawn(async move {
+        subscription_manager.run().await;
+    });
+
+    // Process messages in main task
+    let processor_handle = tokio::spawn(async move {
+        message_processor
+            .process_messages(handle_subscription_event)
+            .await;
+    });
+
+    // Wait for either task to complete
+    tokio::select! {
+        _ = subscription_handle => {
+            eprintln!("Subscription task ended");
+        }
+        _ = processor_handle => {
+            eprintln!("Message processor ended");
+        }
+        _ = tokio::signal::ctrl_c() => {
+            println!("\n🛑 Received interrupt signal, shutting down...");
         }
     }
+
+    Ok(())
 }
 
-async fn handle_mqtt_message(publish: rumqttc::Publish) {
-    let payload_str = match std::str::from_utf8(&publish.payload) {
-        Ok(s) => s,
-        Err(e) => {
-            eprintln!("Failed to parse message as UTF-8: {e}");
-            return;
-        }
-    };
+fn handle_subscription_event(
+    event: mqtt::subscription::SubscriptionEvent,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    use mqtt::subscription::SubscriptionEvent;
 
-    match messages::DeviceMessage::parse(payload_str) {
-        Ok(message) => {
-            let message_type = message.get_message_type();
-            let sequence_id = message.get_sequence_id().unwrap_or("none");
-
-            match message_type {
-                messages::MessageType::PrintPushStatus => {
-                    if let Some(status) = messages::PrinterStatus::from_device_message(&message) {
-                        handle_print_status(status);
-                    }
-                    // Also show detailed Bambu-specific info
-                    handle_bambu_print_status(&message);
-                }
-                messages::MessageType::PushingPushAll => {
-                    println!("📊 Received complete printer status (pushall)");
-                    handle_pushall_message(&message);
-                }
-                messages::MessageType::SystemPushAll => {
-                    println!("🔧 Received system information");
-                    handle_system_message(&message);
-                }
-                messages::MessageType::Unknown(cmd) => {
-                    println!("❓ Unknown message type: {cmd} (seq: {sequence_id})");
-                }
-            }
+    match event {
+        SubscriptionEvent::Message(message) => {
+            process_device_message(*message);
         }
-        Err(e) => {
-            eprintln!("Failed to parse MQTT message: {e}");
-            if payload_str.len() < 1000 {
-                eprintln!("Raw message: {payload_str}");
-            } else {
-                eprintln!("Raw message (truncated): {}...", &payload_str[..500]);
+        SubscriptionEvent::Connected => {
+            println!("✅ Connected to printer");
+        }
+        SubscriptionEvent::Disconnected(reason) => {
+            eprintln!("❌ Disconnected: {reason}");
+        }
+    }
+
+    Ok(())
+}
+
+fn process_device_message(message: messages::DeviceMessage) {
+    let message_type = message.get_message_type();
+    let sequence_id = message.get_sequence_id().unwrap_or("none");
+
+    match message_type {
+        messages::MessageType::PrintPushStatus => {
+            if let Some(status) = messages::PrinterStatus::from_device_message(&message) {
+                handle_print_status(status);
             }
+            handle_bambu_print_status(&message);
+        }
+        messages::MessageType::PushingPushAll => {
+            println!("📊 Received complete printer status (pushall)");
+            handle_pushall_message(&message);
+        }
+        messages::MessageType::SystemPushAll => {
+            println!("🔧 Received system information");
+            handle_system_message(&message);
+        }
+        messages::MessageType::Unknown(cmd) => {
+            println!("❓ Unknown message type: {cmd} (seq: {sequence_id})");
         }
     }
 }
