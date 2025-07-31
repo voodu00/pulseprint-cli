@@ -1,5 +1,5 @@
 use crate::config::PrinterConfig;
-use rumqttc::{AsyncClient, EventLoop, MqttOptions, QoS, TlsConfiguration, Transport};
+use rumqttc::{AsyncClient, EventLoop, MqttOptions, TlsConfiguration, Transport};
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
 use rustls::{DigitallySignedStruct, SignatureScheme};
 use std::error::Error;
@@ -7,6 +7,8 @@ use std::time::Duration;
 
 #[cfg(test)]
 mod tests;
+
+pub mod subscription;
 
 // Custom certificate verifier that accepts any certificate (for local printers with self-signed certs)
 #[derive(Debug)]
@@ -64,11 +66,10 @@ impl ServerCertVerifier for NoVerifyTls {
 pub struct MqttClient {
     client: AsyncClient,
     eventloop: EventLoop,
-    config: PrinterConfig,
 }
 
 impl MqttClient {
-    pub async fn new(config: PrinterConfig) -> Result<Self, Box<dyn Error>> {
+    pub async fn new(config: PrinterConfig) -> Result<Self, Box<dyn Error + Send + Sync>> {
         let mut mqtt_options = MqttOptions::new("pulseprint-cli", &config.ip, config.port);
 
         // Set authentication
@@ -90,30 +91,10 @@ impl MqttClient {
 
         let (client, eventloop) = AsyncClient::new(mqtt_options, 10);
 
-        Ok(MqttClient {
-            client,
-            eventloop,
-            config,
-        })
+        Ok(MqttClient { client, eventloop })
     }
 
-    pub async fn connect(&self) -> Result<(), Box<dyn Error>> {
-        // Subscribe to the device report topic
-        let report_topic = self.config.report_topic();
-        self.client
-            .subscribe(&report_topic, QoS::AtMostOnce)
-            .await?;
-
-        println!(
-            "Connected to printer '{}' at {} and subscribed to {}",
-            self.config.name, self.config.ip, report_topic
-        );
-        println!("📡 Monitoring printer status - Press Ctrl+C to stop...");
-
-        Ok(())
-    }
-
-    pub fn get_eventloop(self) -> EventLoop {
-        self.eventloop
+    pub fn into_parts(self) -> (AsyncClient, EventLoop) {
+        (self.client, self.eventloop)
     }
 }
